@@ -1,0 +1,68 @@
+name: Deploy Static Website
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ppinfra/**'
+      - '.github/workflows/deploy.yml'
+
+env:
+  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v5
+        with:
+          pulumi-version: 3.207.0
+
+      - name: Install dependencies
+        working-directory: ./ppinfra
+        run: npm ci
+
+      - name: Pulumi Preview
+        working-directory: ./ppinfra
+        run: pulumi preview --stack dev
+
+      - name: Pulumi Deploy
+        working-directory: ./ppinfra
+        run: pulumi up --stack dev --yes
+
+      - name: Export Stack Outputs
+        working-directory: ./ppinfra
+        run: |
+          echo "CDN URL: $(pulumi stack output cdnURL --stack dev)" >> $GITHUB_STEP_SUMMARY
+          echo "Origin URL: $(pulumi stack output originURL --stack dev)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload deployment logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-logs
+          path: |
+            ./ppinfra/*.log
+          retention-days: 30

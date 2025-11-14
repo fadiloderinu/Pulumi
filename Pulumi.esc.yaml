@@ -1,0 +1,24 @@
+values:
+  aws:
+    login:
+      fn::open::aws-login:
+        oidc:
+          duration: 1h
+          roleArn: ${AWS_ROLE_ARN}
+          sessionName: pulumi-github-actions
+    config:
+      region: us-east-1
+
+  pulumi:
+    api:
+      url: https://api.pulumi.com
+    config:
+      passphrase: ${PULUMI_PASSPHRASE}
+
+environments:
+  dev:
+    values:
+      aws:
+        login: ${aws.login}
+        config: ${aws.config}
+      pulumi: ${pulumi.config}
